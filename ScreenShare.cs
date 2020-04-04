@@ -15,6 +15,7 @@ namespace Alan {
             new Thread(() => {
                 while (true) {
                     if (s.Count > 0) Send();
+                    Scheduler.Tick();
                     Thread.Sleep(1000);
                 }
             }).Start();

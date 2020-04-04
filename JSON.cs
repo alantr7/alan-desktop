@@ -11,12 +11,22 @@ namespace Alan {
             json = "\"root\":" + json;
 
             bool Quoted = false;
+            bool SquareBrackets = false;
 
             Dictionary<int, JSONElement> Open = new Dictionary<int, JSONElement>();
 
             a: for (int i = 0; i < json.Length; i++) {
                 if ((json[i] == '"' && i - 1 < 0) || (json[i] == '"' && i - 1 >= 0 && json[i - 1] != '\\')) {
                     Quoted = !Quoted;
+                    continue;
+                }
+
+                if (json[i] == '[' && !Quoted) {
+                    SquareBrackets = true;
+                    continue;
+                }
+                if (json[i] == ']' && !Quoted) {
+                    SquareBrackets = false;
                     continue;
                 }
 
@@ -40,7 +50,6 @@ namespace Alan {
                         }
                         if (json[j] == '}' && !Quoted2) {
                             FoundCount++;
-
                             if (OpenCount == FoundCount) {
 
                                 bool Quoted3 = false;
@@ -83,8 +92,9 @@ namespace Alan {
                                     if (c == '{' || c == '}') BracketsCount++;
                                 }
 
-                                if (BracketsCount == 2)
+                                if (BracketsCount == 2) {
                                     JsonElement.CreateValues(JsonObject);
+                                }
 
                                 Open[Brackets] = JsonElement;
                                 if (Brackets > 0) {
@@ -103,6 +113,23 @@ namespace Alan {
 
             return Open[0];
         }
+
+        public static string Stringify(JSONElement root) {
+            string s = "";
+
+            if (root.c.Count > 0) {
+                s += "{";
+                foreach (string k in root.c.Keys) {
+                    s += "\"" + k + "\":" + Stringify(root.c[k]) + ", ";
+                }
+                s = s.Substring(0, s.Length - 2);
+                s += "}";
+            }
+            else s += root.v;
+
+            return s;
+        }
+
     }
 
     class JSONElement {
@@ -148,13 +175,19 @@ namespace Alan {
                         }
 
                         Console.WriteLine($"Found key: {key} with value: {value}");
+                        JSONElement e = new JSONElement();
+                        e.v = value;
+                        c.Add(key, e);
                     }
                     continue;
                 }
             }
         }
         public override string ToString() {
-            return (string)v;
+            return "" + v;
+        }
+        public int ToInt() {
+            return (int)v;
         }
     }
 

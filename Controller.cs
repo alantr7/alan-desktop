@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Net.NetworkInformation;
 
 namespace Alan {
@@ -12,16 +13,12 @@ namespace Alan {
 
         public static void Main() {
 
-            /*Console.WriteLine("DEVICE ID: " + DEVICE_ID);
+            Console.WriteLine("DEVICE ID: " + DEVICE_ID);
 
             ProcessTracker.Start();
             ScreenShare.Start();
 
-            Server.CreateServer();*/
-
-            JSONElement root = JSON.Parse("{\"info\":{\"device\":{\"id\":5,\"ip\":\"192.168.0.1\"},\"browser\":{\"version\":5,\"name\":\"Chr{o}me\"}}}");
-            Console.WriteLine(root.c["info"].c["device"]);
-            Console.WriteLine(root.c["info"].c["browser"]);
+            Server.CreateServer();
 
         }
 
@@ -39,5 +36,12 @@ namespace Alan {
 
         }
         
+        public static void Log(string name, string line) {
+            string Path = Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\logs\\" + DateTime.Now.ToString("ddmmyyyy");
+            Directory.CreateDirectory(Path);
+
+            File.AppendAllText(Path + "\\" + name + ".txt", line + "\n");
+        }
+
     }
 }

@@ -1,5 +1,4 @@
-﻿using Newtonsoft.Json;
-using SuperWebSocket;
+﻿using SuperWebSocket;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -59,17 +58,17 @@ namespace Alan {
             }
         }
 
-        public static void Respond(WebSocketSession s, Dictionary<string, string> json) {
-            switch (json["action"]) {
+        public static void Respond(WebSocketSession s, JSONElement json) {
+            switch (json.c["action"].v) {
 
                 case "device.info":
-                    clients[s] = json["info"];
-                    s.Send($"{{\"action\":\"viewer.add\", \"info\":{json["info"]}}}");
-                    Broadcast($"{{\"action\":\"viewer.add\", \"info\":{json["info"]}}}");
+                    clients[s] = ((string)json.c["info"].v).Replace("\\", "");
+                    s.Send($"{{\"action\":\"viewer.add\", \"info\":{clients[s]}}}");
+                    Broadcast($"{{\"action\":\"viewer.add\", \"info\":{clients[s]}}}");
                     break;
 
                 case "process.start":
-                    string p = json["path"];
+                    string p = (string)json.c["path"].v;
                     if (File.Exists(p)) {
                         Process process = new Process();
                         process.StartInfo.FileName = p;
@@ -81,7 +80,7 @@ namespace Alan {
                     }
                     break;
                 case "process.kill":
-                    ProcessTracker.KillProcess(json["process"]);
+                    ProcessTracker.KillProcess((string)json.c["process"].v);
                     break;
                 case "pc.shutdown":
                     Process.Start(new ProcessStartInfo("shutdown", "/s /t 0") {
@@ -90,15 +89,15 @@ namespace Alan {
                     });
                     break;
                 case "pc.input.mouse":
-                    if (json["button"] == "left") Robot.MouseLeftClick();
+                    if ((string)json.c["button"].v == "left") Robot.MouseLeftClick();
                     else Robot.MouseRightClick();
                     break;
                 case "pc.input.keyboard":
-                    Robot.KeyboardWrite(json["keys"]);
+                    Robot.KeyboardWrite((string)json.c["keys"].v);
                     break;
                 case "pc.file.list":
-                    p = json["path"];
-                    string caller = json["caller"];
+                    p = (string)json.c["path"].v;
+                    string caller = (string)json.c["caller"].v;
                     string r = "{\"action\":\"pc.file.list\",\"caller\":\"" + caller + "\",\"list\":[";                    
                     if (p == "/") {
                         foreach (DriveInfo di in DriveInfo.GetDrives())
@@ -131,7 +130,7 @@ namespace Alan {
                 case "pc.command":
                     Process.Start(new ProcessStartInfo() {
                         FileName = "cmd",
-                        Arguments = "/C " + json["command"],
+                        Arguments = "/C " + json.c["command"].v,
                         WindowStyle = ProcessWindowStyle.Hidden
                     });
                     break;
@@ -143,8 +142,8 @@ namespace Alan {
                     ScreenShare.s.Remove(s);
                     break;
                 case "pc.torrent.games.find":
-                    string Games = TorrentFinder.FindGamesJson(json["query"]);
-                    s.Send($"{{\"action\":\"pc.torrent.games.find\",\"caller\":\"{json["caller"]}\",\"list\":\"{Games}\"}}");
+                    string Games = TorrentFinder.FindGamesJson((string)json.c["query"].v);
+                    s.Send($"{{\"action\":\"pc.torrent.games.find\",\"caller\":\"{json.c["caller"].v}\",\"list\":\"{Games}\"}}");
                     break;
                 case "pc.torrent.games.scan":
 
@@ -177,7 +176,7 @@ namespace Alan {
             Console.WriteLine($"Received message: {value}");
 
             try {                
-                Respond(session, JsonConvert.DeserializeObject<Dictionary<string, string>>(value));
+                Respond(session, JSON.Parse(value));
             }
             catch { }
         }
