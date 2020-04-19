@@ -88,13 +88,21 @@ namespace Alan {
                                 JsonElement.v = JsonObject;
 
                                 int BracketsCount = 0;
-                                foreach (char c in JsonObject) {
-                                    if (c == '{' || c == '}') BracketsCount++;
+                                bool Quoted4 = false;
+                                for (int k = 0; k < JsonObject.Length; k++) {
+                                    
+                                    if (json[k] == '"' && (k == 0 || (k - 1 >= 0 && json[k - 1] != '\\'))) {
+                                        Quoted4 = !Quoted4;
+                                        continue;
+                                    }
+
+                                    if ((JsonObject[k] == '{' || JsonObject[k] == '}') && !Quoted4) BracketsCount++;
                                 }
 
-                                if (BracketsCount == 2) {
+                                if (BracketsCount <= 2) {
                                     JsonElement.CreateValues(JsonObject);
                                 }
+                                else Console.WriteLine("Found " + BracketsCount + " brackets");
 
                                 Open[Brackets] = JsonElement;
                                 if (Brackets > 0) {
@@ -174,7 +182,6 @@ namespace Alan {
                             }
                         }
 
-                        Console.WriteLine($"Found key: {key} with value: {value}");
                         JSONElement e = new JSONElement();
                         e.v = value;
                         c.Add(key, e);

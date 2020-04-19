@@ -151,6 +151,21 @@ namespace Alan {
                 case "open.link":
 
                     break;
+
+
+                case "watch.play":
+                    int season = 0, episode = 0;
+                    if (json.c["type"].ToString() == "serie") {
+                        season = (int)json.c["season"].v;
+                        episode = (int)json.c["episode"].v;
+                    }
+                    Watch.Play(json.c["imdbid"].ToString(), json.c["type"].ToString(), season, episode);
+                    break;
+                case "watch.resume":
+                    break;
+                case "watch.pause":
+                    break;
+
             }
         }
 
@@ -174,9 +189,9 @@ namespace Alan {
 
         private static void Ws_NewMessageReceived(WebSocketSession session, string value) {
             Console.WriteLine($"Received message: {value}");
-
             try {                
                 Respond(session, JSON.Parse(value));
+                Controller.Log("server", clients[session] + ": " + value);
             }
             catch { }
         }

@@ -20,6 +20,8 @@ namespace Alan {
 
             Server.CreateServer();
 
+            //Watch.Play("tt0095016", "movie");
+
         }
 
         public static string GetMACAddress() {
@@ -37,7 +39,7 @@ namespace Alan {
         }
         
         public static void Log(string name, string line) {
-            string Path = Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\logs\\" + DateTime.Now.ToString("ddmmyyyy");
+            string Path = Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\logs\\" + DateTime.Now.ToString("ddMMyyyy");
             Directory.CreateDirectory(Path);
 
             File.AppendAllText(Path + "\\" + name + ".txt", line + "\n");
