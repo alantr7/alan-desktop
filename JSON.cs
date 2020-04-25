@@ -145,6 +145,8 @@ namespace Alan {
         public object v;
         public void CreateValues(string s) {
 
+            Console.WriteLine("Creating values: " + s);
+
             string key = "", value = "";
             bool Quoted = false;
             int QuoteStart = 0;

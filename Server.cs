@@ -18,13 +18,20 @@ namespace Alan {
         public static void CreateServer() {
 
             ws = new WebSocketServer();
-            ws.Setup(27000);
+            try {
+                ws.Setup(27000);
 
-            ws.NewSessionConnected += Ws_NewSessionConnected;
-            ws.NewMessageReceived += Ws_NewMessageReceived;
-            ws.SessionClosed += Ws_SessionClosed;
+                ws.NewSessionConnected += Ws_NewSessionConnected;
+                ws.NewMessageReceived += Ws_NewMessageReceived;
+                ws.SessionClosed += Ws_SessionClosed;
 
-            ws.Start();
+                ws.Start();
+            } catch (Exception e) {
+                Console.WriteLine("Server could not be created.");
+                Console.WriteLine(e.Message);
+            } finally {
+                Console.WriteLine("Server started.");
+            }
 
             // EXPOSE IT USING NGROK
             // CHECK IF NGROK IS ALREADY RUNNING
@@ -53,12 +60,17 @@ namespace Alan {
                         Console.WriteLine(wc.DownloadString($"{Controller.URL}request/host.php?device={Controller.DEVICE_ID}&ip={ip}&password=test"));
                     }
                 }
-                catch { }
+                catch (Exception e) {
+                    Console.WriteLine("Error whilst updating ngrok: " + e.Message);
+                }
                 Thread.Sleep(5000);
             }
         }
 
         public static void Respond(WebSocketSession s, JSONElement json) {
+
+            Console.WriteLine("Responding to " + json.c["action"].v);
+
             switch (json.c["action"].v) {
 
                 case "device.info":
@@ -127,12 +139,39 @@ namespace Alan {
                 case "pc.file.delete":
 
                     break;
-                case "pc.command":
-                    Process.Start(new ProcessStartInfo() {
-                        FileName = "cmd",
-                        Arguments = "/C " + json.c["command"].v,
-                        WindowStyle = ProcessWindowStyle.Hidden
-                    });
+                case "console.input":
+                    Console.WriteLine("Executing command " + json.c["command"].v);
+                    Process CommandProcess = new Process();
+
+                    CommandProcess.StartInfo.FileName = "cmd";
+                    CommandProcess.StartInfo.Arguments = "/C " + json.c["command"].v;
+                    CommandProcess.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
+                    CommandProcess.StartInfo.UseShellExecute = false;
+                    CommandProcess.StartInfo.RedirectStandardOutput = true;
+
+                    CommandProcess.Start();
+
+                    string CommandOutput = "", Line = "";
+
+                    StreamReader streamReader = CommandProcess.StandardOutput;
+                    while ((Line = streamReader.ReadLine()) != null) CommandOutput += Line + "<br>";
+
+                    /*int LastNewLineCharPos = 0;
+                    while (CommandOutput.Contains("\n")) {
+                        LastNewLineCharPos = CommandOutput.IndexOf('\n');
+                        CommandOutput = CommandOutput.Substring(0, LastNewLineCharPos - 1) + "<br>" + CommandOutput.Substring(LastNewLineCharPos + 1);
+
+                        Controller.Log("REMOVING NEW LINE", CommandOutput);
+                    }
+
+                    foreach (char c in CommandOutput) {
+                        Console.WriteLine("CHAR " + c);
+                        Controller.Log("test", "CHAR " + c);
+                    }*/
+
+                    CommandProcess.WaitForExit();
+
+                    Broadcast($"{{\"action\":\"console.output\",\"output\":\"{CommandOutput}\"}}");
                     break;
                 case "pc.screenshare.start":
                     if (!ScreenShare.s.Contains(s))
@@ -173,7 +212,10 @@ namespace Alan {
             try {
                 foreach (WebSocketSession c in ws.GetAllSessions()) c.Send(Message);
             }
-            catch { }
+            catch (Exception e) {
+                Console.WriteLine("Server is not online yet.");
+                Console.WriteLine(e.Message);
+            }
         }
 
         private static void Ws_SessionClosed(WebSocketSession session, SuperSocket.SocketBase.CloseReason value) {
@@ -193,7 +235,9 @@ namespace Alan {
                 Respond(session, JSON.Parse(value));
                 Controller.Log("server", clients[session] + ": " + value);
             }
-            catch { }
+            catch (Exception e) {
+                Console.WriteLine(e.Message);
+            }
         }
 
         private static void Ws_NewSessionConnected(WebSocketSession session) {

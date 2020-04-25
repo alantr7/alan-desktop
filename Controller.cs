@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.NetworkInformation;
+using System.Runtime.InteropServices;
 
 namespace Alan {
 
@@ -11,7 +13,14 @@ namespace Alan {
 
         public static string DEVICE_ID = GetMACAddress();
 
-        public static void Main() {
+        public static void Main(string[] args) {
+
+            if (args.Length > 0) {
+                Commands.Answer(args);
+                return;
+            }
+
+            ShowWindow(GetConsoleWindow(), SW_HIDE);
 
             Console.WriteLine("DEVICE ID: " + DEVICE_ID);
 
@@ -23,6 +32,15 @@ namespace Alan {
             //Watch.Play("tt0095016", "movie");
 
         }
+
+        [DllImport("kernel32.dll")]
+        static extern IntPtr GetConsoleWindow();
+
+        [DllImport("user32.dll")]
+        static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        const int SW_HIDE = 0;
+        const int SW_SHOW = 5;
 
         public static string GetMACAddress() {
             NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
