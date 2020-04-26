@@ -185,7 +185,7 @@ namespace Alan {
                         }
 
                         JSONElement e = new JSONElement();
-                        e.v = value;
+                        e.v = value.Replace("\\\"", "\"");
                         c.Add(key, e);
                     }
                     continue;

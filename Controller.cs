@@ -8,8 +8,8 @@ namespace Alan {
 
     class Controller {
 
-        public static string URL = "http://localhost/alan/";
-        //public static string URL = "http://alantr7.uwebweb.com/alan/";
+        //public static string URL = "http://localhost/alan/";
+        public static string URL = "http://alantr7.uwebweb.com/alan/";
 
         public static string DEVICE_ID = GetMACAddress();
 

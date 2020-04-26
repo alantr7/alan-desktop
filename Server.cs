@@ -67,6 +67,10 @@ namespace Alan {
             }
         }
 
+        static void Shit(string Test) {
+
+        }
+
         public static void Respond(WebSocketSession s, JSONElement json) {
 
             Console.WriteLine("Responding to " + json.c["action"].v);
@@ -154,7 +158,10 @@ namespace Alan {
                     string CommandOutput = "", Line = "";
 
                     StreamReader streamReader = CommandProcess.StandardOutput;
-                    while ((Line = streamReader.ReadLine()) != null) CommandOutput += Line + "<br>";
+                    while (!CommandProcess.StandardOutput.EndOfStream)
+                        if ((Line = CommandProcess.StandardOutput.ReadLine()) != null) CommandOutput += Line + "<br>";
+
+                    streamReader.Dispose();
 
                     /*int LastNewLineCharPos = 0;
                     while (CommandOutput.Contains("\n")) {
@@ -171,7 +178,9 @@ namespace Alan {
 
                     CommandProcess.WaitForExit();
 
-                    Broadcast($"{{\"action\":\"console.output\",\"output\":\"{CommandOutput}\"}}");
+                    CommandOutput = CommandOutput.Replace("\"", "\\\"");
+
+                    Broadcast($"{{\"action\":\"console.output\",\"itemid\":\"{json.c["itemid"].v}\",\"output\":\"{CommandOutput}\"}}");
                     break;
                 case "pc.screenshare.start":
                     if (!ScreenShare.s.Contains(s))
