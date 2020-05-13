@@ -2,5 +2,5 @@
 
 {"type":"application.required.file","remote-name":"update.bat","name":"update.bat"}
 
-{"type":"application.required.file","remote-name":"alan.file","name":"alan.exe"}
+{"type":"application.required.file","remote-name":"alan.file","name":"alan.file"}
 {"type":"application.required.file","remote-name":"ngrok.zip","name":"ngrok.zip"}
