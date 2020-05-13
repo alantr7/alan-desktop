@@ -4,7 +4,7 @@
   "hosted-name":"Alan.file",
   "required-files":1,
   "required-file-1": {
-    "name":"ngrok.exe",
-    "hosted-name":"ngrok.file"
+    "name":"ngrok.zip",
+    "hosted-name":"ngrok.zip"
   }
 }
