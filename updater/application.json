@@ -1,3 +1,3 @@
 {"type":"application.info","name":"Alan","latest-version":2}
-{"type":"application.required.file","remote-name":"Alan.file","name":"Alan.exe"}
+{"type":"application.required.file","remote-name":"alan.file","name":"alan.exe"}
 {"type":"application.required.file","remote-name":"ngrok.zip","name":"ngrok.zip"}
