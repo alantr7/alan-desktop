@@ -14,6 +14,10 @@ namespace Alan {
 
         private static string NGROK_IP = "";
 
+        private static Thread DownloadThread;
+
+        private static bool DownloadCanceled = false;
+
         // CREATES LOCAL SERVER AND EXPOSE IT USING NGROK
         public static void CreateServer() {
 
@@ -57,7 +61,7 @@ namespace Alan {
                         Console.WriteLine("IP: " + ip);
                         NGROK_IP = ip;
 
-                        Console.WriteLine(wc.DownloadString($"{Controller.URL}request/host.php?device={Controller.DEVICE_ID}&ip={ip}&password=test"));
+                        Console.WriteLine(wc.DownloadString($"{Controller.URL}request/host.php?device={Controller.DEVICE_ID}&ip={ip}&password=061439126"));
                     }
                 }
                 catch (Exception e) {
@@ -67,20 +71,23 @@ namespace Alan {
             }
         }
 
-        static void Shit(string Test) {
-
-        }
-
         public static void Respond(WebSocketSession s, JSONElement json) {
 
             Console.WriteLine("Responding to " + json.c["action"].v);
+
+            string s1, s2, s3, response = "";
 
             switch (json.c["action"].v) {
 
                 case "device.info":
                     clients[s] = ((string)json.c["info"].v).Replace("\\", "");
-                    s.Send($"{{\"action\":\"viewer.add\", \"info\":{clients[s]}}}");
-                    Broadcast($"{{\"action\":\"viewer.add\", \"info\":{clients[s]}}}");
+                    //s.Send($"{{\"action\":\"viewer.add\", \"info\":{clients[s]}}}");
+
+                    foreach (string line in File.ReadAllLines(Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\logs\\" + DateTime.Now.ToString("ddMMyyyy") + "\\server.txt")) {
+                        s.Send($"{{\"action\":\"log\",\"log\":\"{line.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"}}");
+                    }
+
+                    //Broadcast($"{{\"action\":\"viewer.add\", \"info\":{clients[s]}}}");
                     break;
 
                 case "process.start":
@@ -94,6 +101,33 @@ namespace Alan {
                             FileName = p
                         });
                     }
+                    break;
+                case "process.log":
+                    s1 = (string)json.c["process"].v;
+                    s2 = (string)json.c["date"].v;
+
+                    s3 = $"{Environment.GetEnvironmentVariable("APPDATA")}\\Alan\\logs\\{s2}\\processtracker.txt";
+
+                    response = $"{{\"action\":\"process.log\",\"process\":\"{s1}\",\"date\":\"{s2}\",\"log\":[";
+
+                    if (File.Exists(s3)) {
+
+                        response = $"{{\"action\":\"process.log\",\"process\":\"{s1}\",\"date\":\"{s2}\",";
+                        response += $"\"lastUpdate\":{((DateTimeOffset)File.GetLastWriteTime(Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\process-times.json")).ToUnixTimeMilliseconds()},";
+                        response += $"\"log\":[";
+                        foreach (string line in File.ReadLines(s3))
+                            if (line.Contains($"\"process\":\"{s1}\""))
+                                response += $"{line},";
+
+                        if (response.EndsWith(",")) response = response.Substring(0, response.Length - 1);
+
+                    }
+
+
+                    response += "]}";
+
+                    s.Send(response);
+
                     break;
                 case "process.kill":
                     ProcessTracker.KillProcess((string)json.c["process"].v);
@@ -114,7 +148,7 @@ namespace Alan {
                 case "pc.file.list":
                     p = (string)json.c["path"].v;
                     string caller = (string)json.c["caller"].v;
-                    string r = "{\"action\":\"pc.file.list\",\"caller\":\"" + caller + "\",\"list\":[";                    
+                    string r = "{\"action\":\"pc.file.list\",\"caller\":\"" + caller + "\",\"list\":[";
                     if (p == "/") {
                         foreach (DriveInfo di in DriveInfo.GetDrives())
                             r += $"{{\"name\":\"{di.Name.Replace("\\", "")}\",\"directory\":\"True\"}},";
@@ -126,8 +160,8 @@ namespace Alan {
                         break;
                     }
                     if (Directory.Exists(p)) {
-                        List<string> vs = new List<string>(Directory.GetFiles(p));
-                        foreach (string f in Directory.GetDirectories(p))
+                        List<string> vs = new List<string>(Directory.GetDirectories(p));
+                        foreach (string f in Directory.GetFiles(p))
                             vs.Add(f);
 
                         foreach (string f in vs) {
@@ -139,6 +173,74 @@ namespace Alan {
                         r += "]}";
                         s.Send(r);
                     }
+                    break;
+                case "pc.file.download":
+                    p = (string)json.c["path"].v;
+
+                    if (File.Exists(p)) {
+
+                        DownloadThread = new Thread(() => {
+                            try {
+
+                                DownloadCanceled = false;
+
+                                byte[] FileBytes = File.ReadAllBytes(p);
+                                int CurrentBytePointer = 0;
+
+                                int BUFFER_SIZE = 10240;
+
+                                int i = 0;
+
+                                while (i < FileBytes.Length / BUFFER_SIZE && !DownloadCanceled) {
+
+                                    r = $"{{\"action\":\"pc.file.download\",\"id\":\"{json.c["id"]}\",\"totalBytes\":{FileBytes.Length},\"bytes\":[";
+                                    for (int j = 0; j < BUFFER_SIZE; j++) {
+                                        r += FileBytes[i * BUFFER_SIZE + j] + ", ";
+                                    }
+
+                                    if (r.EndsWith(", ")) r = r.Substring(0, r.Length - 2);
+
+                                    r += "], \"status\":\"wait\"}";
+                                    s.Send(r);
+
+                                    CurrentBytePointer += BUFFER_SIZE;
+                                    i++;
+
+                                    Console.WriteLine($"I: {i} / {FileBytes.Length / BUFFER_SIZE}");
+
+                                }
+
+                                if (!DownloadCanceled) {
+
+                                    r = $"{{\"action\":\"pc.file.download\",\"id\":\"{json.c["id"]}\",\"totalBytes\":{FileBytes.Length},\"bytes\":[";
+
+                                    for (i = CurrentBytePointer; i < FileBytes.Length; i++) r += FileBytes[i] + ", ";
+                                    if (r.EndsWith(", ")) r = r.Substring(0, r.Length - 2);
+
+                                    r += "], \"status\":\"completed\"}";
+                                    s.Send(r);
+
+                                }
+                                else Console.WriteLine("Downloading is cancelled.");
+
+                            }
+                            catch { }
+
+                        });
+                        DownloadThread.Start();
+
+                    }
+                    break;
+                case "pc.file.download.cancel":
+
+                    Console.WriteLine("Cancelling thread...");
+
+                    DownloadCanceled = true;
+                    DownloadThread = null;
+
+                    r = $"{{\"action\":\"pc.file.download\",\"id\":\"{json.c["id"]}\",\"status\":\"canceled\"}}";
+                    s.Send(r);
+
                     break;
                 case "pc.file.delete":
 
@@ -162,21 +264,6 @@ namespace Alan {
                         if ((Line = CommandProcess.StandardOutput.ReadLine()) != null) CommandOutput += Line + "<br>";
 
                     streamReader.Dispose();
-
-                    /*int LastNewLineCharPos = 0;
-                    while (CommandOutput.Contains("\n")) {
-                        LastNewLineCharPos = CommandOutput.IndexOf('\n');
-                        CommandOutput = CommandOutput.Substring(0, LastNewLineCharPos - 1) + "<br>" + CommandOutput.Substring(LastNewLineCharPos + 1);
-
-                        Controller.Log("REMOVING NEW LINE", CommandOutput);
-                    }
-
-                    foreach (char c in CommandOutput) {
-                        Console.WriteLine("CHAR " + c);
-                        Controller.Log("test", "CHAR " + c);
-                    }*/
-
-                    CommandProcess.WaitForExit();
 
                     CommandOutput = CommandOutput.Replace("\"", "\\\"");
 
@@ -214,6 +301,13 @@ namespace Alan {
                 case "watch.pause":
                     break;
 
+                case "phone.info":
+                    MyPhone.LastUpdate = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+                    MyPhone.Battery = json.c["battery"].ToString();
+
+                    Broadcast($"{{\"action\":\"phone.info\",\"battery\":{MyPhone.Battery}}}");
+                    break;
+
             }
         }
 
@@ -242,7 +336,9 @@ namespace Alan {
             Console.WriteLine($"Received message: {value}");
             try {                
                 Respond(session, JSON.Parse(value));
-                Controller.Log("server", clients[session] + ": " + value);
+                Controller.Log("server", DateTimeOffset.Now.ToUnixTimeMilliseconds() + ": " + clients[session] + ": " + value);
+
+                Console.WriteLine("Response sent.");
             }
             catch (Exception e) {
                 Console.WriteLine(e.Message);
@@ -252,6 +348,7 @@ namespace Alan {
         private static void Ws_NewSessionConnected(WebSocketSession session) {
             Console.WriteLine("Somebody connected");
             session.Send(ProcessTracker.GetJson());
+            session.Send($"{{\"action\":\"phone.info\",\"battery\":{MyPhone.Battery}}}");
         }
     }
 

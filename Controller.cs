@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace Alan {
 
@@ -20,16 +22,32 @@ namespace Alan {
                 return;
             }
 
-            ShowWindow(GetConsoleWindow(), SW_HIDE);
+            if (Process.GetProcessesByName("Alan").Length > 1)
+                return;
+
+            //ShowWindow(GetConsoleWindow(), SW_HIDE);
+
+            Directory.CreateDirectory(Environment.GetEnvironmentVariable("APPDATA") + "\\Alan");
+            Directory.CreateDirectory(Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\logs");
 
             Console.WriteLine("DEVICE ID: " + DEVICE_ID);
+            Updater Updater = new Updater("https://raw.githubusercontent.com/alantr7/alan-desktop/master/updater", Environment.GetEnvironmentVariable("APPDATA") + "\\Alan", 3);
+
+            Updater.SetRequiredFiles(new string[] {
+                "ngrok.exe", "update.bat"
+            });
+
+            if (Updater.UpdateExists()) {
+                Console.WriteLine($"Postoji nova verzija : {Updater.GetLatestVersion()}");
+
+                Updater.InstallUpdate();
+            }
+            else Console.WriteLine($"Zadnja verzija instalirana : {Updater.GetLatestVersion()}");
 
             ProcessTracker.Start();
             ScreenShare.Start();
 
             Server.CreateServer();
-
-            //Watch.Play("tt0095016", "movie");
 
         }
 
@@ -61,6 +79,9 @@ namespace Alan {
             Directory.CreateDirectory(Path);
 
             File.AppendAllText(Path + "\\" + name + ".txt", line + "\n");
+
+            Server.Broadcast("{\"action\":\"log\",\"time\":\"\",\"log\":\"" + line.Replace("\"", "\\\"") + "\"}");
+
         }
 
     }

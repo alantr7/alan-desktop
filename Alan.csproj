@@ -45,12 +45,14 @@
     <Compile Include="Commands.cs" />
     <Compile Include="Controller.cs" />
     <Compile Include="JSON.cs" />
+    <Compile Include="MyPhone.cs" />
     <Compile Include="ProcessTracker.cs" />
     <Compile Include="Robot.cs" />
     <Compile Include="Scheduler.cs" />
     <Compile Include="ScreenShare.cs" />
     <Compile Include="Server.cs" />
     <Compile Include="TorrentFinder.cs" />
+    <Compile Include="Updater.cs" />
     <Compile Include="Watch.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -77,6 +79,7 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Net.NameResolution, Version=4.0.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <HintPath>packages\System.Net.NameResolution.4.3.0\lib\net46\System.Net.NameResolution.dll</HintPath>
     </Reference>

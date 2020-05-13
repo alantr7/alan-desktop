@@ -22,6 +22,9 @@ namespace Alan {
 
         private static void a() {
 
+            if (!File.Exists(Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\process-times.json"))
+                File.WriteAllText(Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\process-times.json", "{}");
+
             while (true) {
 
                 Count++;
@@ -38,7 +41,7 @@ namespace Alan {
                         Console.WriteLine($"{p.ProcessName} has started.");
                         ProcessList.Add(p.ProcessName, DateTimeOffset.Now.ToUnixTimeMilliseconds());
 
-                        string Json = $"{{\"action\":\"process.start\", \"process\":\"{p.ProcessName}\", \"appname\":\"{p.MainWindowTitle}\", \"time\":\"{DateTimeOffset.Now.ToUnixTimeMilliseconds()}\"}}";
+                        string Json = $"{{\"action\":\"process.start\", \"process\":\"{p.ProcessName}\", \"appname\":\"{p.MainWindowTitle.Replace("\\", "\\\\")}\", \"time\":\"{DateTimeOffset.Now.ToUnixTimeMilliseconds()}\"}}";
 
                         Server.Broadcast(Json);
                         Controller.Log("processtracker", Json);
@@ -92,7 +95,7 @@ namespace Alan {
             for(int i = ProcessList.Keys.Count - 1; i >= 0; i--) {
                 string p = ProcessList.Keys.ElementAt(i);
                 try {
-                    m += $"{{\"name\":\"{p}\",\"appname\":\"{Process.GetProcessesByName(p)[0].MainWindowTitle}\",\"start\":{ProcessList[p]}}}, ";
+                    m += $"{{\"name\":\"{p}\",\"appname\":\"{Process.GetProcessesByName(p)[0].MainWindowTitle.Replace("\\", "\\\\")}\",\"start\":{ProcessList[p]}}}, ";
                 }
                 catch { }
             }

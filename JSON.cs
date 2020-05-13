@@ -145,58 +145,66 @@ namespace Alan {
         public object v;
         public void CreateValues(string s) {
 
-            Console.WriteLine("Creating values: " + s);
+            //Console.WriteLine("Creating values: " + s);
 
-            string key = "", value = "";
-            bool Quoted = false;
-            int QuoteStart = 0;
-            for (int i = 1; i < s.Length - 1; i++) {
-                if (s[i] == '"' && (i == 0 || (i - 1 >= 0 && s[i - 1] != '\\'))) {
-                    Quoted = !Quoted;
-                    if (Quoted) QuoteStart = i;
-                    else {
-                        key = s.Substring(QuoteStart + 1, i - QuoteStart - 1);
-                        int QuoteStart2 = 0;
+                string key = "", value = "";
+                bool Quoted = false;
+                int QuoteStart = 0;
+                for (int i = 1; i < s.Length - 1; i++) {
+                    if (s[i] == '"' && (i == 0 || (i - 1 >= 0 && s[i - 1] != '\\'))) {
+                        Quoted = !Quoted;
+                        if (Quoted) QuoteStart = i;
+                        else {
+                            key = s.Substring(QuoteStart + 1, i - QuoteStart - 1);
+                            int QuoteStart2 = 0;
 
-                        value = "";
+                            value = "";
 
-                        if (s[i + 1] == ':') {
-                            bool Quoted2 = false;
-                            if (s[i + 2] == '"') {
-                                for (int j = i + 2; j < s.Length - 1; j++) {
-                                    if (s[j] == '"' && s[j - 1] != '\\') {
-                                        Quoted2 = !Quoted2;
-                                        if (!Quoted2) {
-                                            value = s.Substring(QuoteStart2 + 1, j - QuoteStart2 - 1);
-                                            i = j;
+                            if (s[i + 1] == ':') {
+                                bool Quoted2 = false;
+                                if (s[i + 2] == '"') {
+                                    for (int j = i + 2; j < s.Length - 1; j++) {
+                                        if (s[j] == '"' && s[j - 1] != '\\') {
+                                            Quoted2 = !Quoted2;
+                                            if (!Quoted2) {
+                                                value = s.Substring(QuoteStart2 + 1, j - QuoteStart2 - 1);
+                                                Console.WriteLine("VALUE FOUND: " + key + " : " + value);
+                                                i = j;
+                                                break;
+                                            }
+                                            else QuoteStart2 = j;
+                                        }
+                                    }
+                                }
+                                else {
+                                    for (int j = i + 2; j < s.Length - 1; j++) {
+                                        if (s[j] == ',' || s[j] == '{' || s[j] == '{' || s[j] == ':') {
                                             break;
                                         }
-                                        else QuoteStart2 = j;
+                                        else value += s[j];
                                     }
-                                }
-                            } else {
-                                for (int j = i + 2; j < s.Length - 1; j++) {
-                                    if (s[j] == ',' || s[j] == '{' || s[j] == '{' || s[j] == ':') {
-                                        break;
-                                    }
-                                    else value += s[j];
                                 }
                             }
-                        }
 
-                        JSONElement e = new JSONElement();
-                        e.v = value.Replace("\\\"", "\"");
-                        c.Add(key, e);
+                            JSONElement e = new JSONElement();
+                            e.v = value.Replace("\\\"", "\"");
+                        try {
+                            c.Add(key, e);
+                        }
+                        catch { }
+                        }
+                        continue;
                     }
-                    continue;
                 }
-            }
         }
         public override string ToString() {
             return "" + v;
         }
         public int ToInt() {
-            return (int)v;
+            return Int32.Parse("" + v);
+        }
+        public bool ToBool() {
+            return Boolean.Parse("" + v);
         }
     }
 
