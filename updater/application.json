@@ -1,0 +1,6 @@
+{"type":"application.info","name":"Alan","latest-version":3}
+
+{"type":"application.required.file","remote-name":"update.bat","name":"update.bat"}
+
+{"type":"application.required.file","remote-name":"alan.file","name":"alan.file"}
+{"type":"application.required.file","remote-name":"ngrok.zip","name":"ngrok.zip"}
