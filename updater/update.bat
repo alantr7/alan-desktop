@@ -4,4 +4,4 @@ del "%appdata%\Alan\alan.exe"
 ren "%appdata%\Alan\alan.file" alan.exe
 
 del "%appdata%\Alan\alan.file"
-alan.exe
+"%appdata%\Alan\alan.exe"
