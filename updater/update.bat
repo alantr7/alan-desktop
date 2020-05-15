@@ -4,3 +4,4 @@ del %appdata%\Alan\alan.exe
 ren %appdata%\Alan\alan.file alan.exe
 
 del %appdata%\Alan\alan.file
+%appdata%\Alan\alan.exe
