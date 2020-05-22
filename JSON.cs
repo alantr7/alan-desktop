@@ -119,7 +119,7 @@ namespace Alan {
                 }
             }
 
-            return Open[0];
+            return Open.Count > 0 ? Open[0] : new JSONElement();
         }
 
         public static string Stringify(JSONElement root) {

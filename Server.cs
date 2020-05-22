@@ -41,12 +41,16 @@ namespace Alan {
             // CHECK IF NGROK IS ALREADY RUNNING
             if (Process.GetProcessesByName("ngrok").Length == 0) {
                 // CREATE NEW NGROK PROCESS
-                Process p = new Process();
-                p.StartInfo.FileName = Environment.GetEnvironmentVariable("APPDATA") + "/Alan/ngrok.exe";
-                p.StartInfo.Arguments = "tcp 27000 --region eu";
-                p.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
-                p.Start();
-            }
+
+                Console.WriteLine("NGROK NOT RUNNING: " + Environment.GetEnvironmentVariable("APPDATA"));
+
+                Process.Start(new ProcessStartInfo() {
+                    FileName = Environment.GetEnvironmentVariable("APPDATA") + "/Alan/ngrok.exe",
+                    Arguments = "tcp 27000 --region eu --authtoken 1bpPKGSlSrnm4XhZ4XtWkkPJHrW_5ZqcrYdzk3rtwNKKiqLWq",
+                    WindowStyle = ProcessWindowStyle.Hidden
+                });
+
+            } else Console.WriteLine("NGROK ALREADY RUNNING");
 
             // GET IP OF THE NGROK SERVER
             while (NGROK_IP.Length < 8) {
@@ -154,11 +158,27 @@ namespace Alan {
                             r += $"{{\"name\":\"{di.Name.Replace("\\", "")}\",\"directory\":\"True\"}},";
 
                         if (r.EndsWith(",")) r = r.Substring(0, r.Length - 1);
-                        r += "]}";
+                        r += $"],\"decodedpath\":\"{p.Replace("\\", "/")}\"}}";
 
                         s.Send(r);
                         break;
                     }
+                    string decodedpath = "";
+                    int EnvVarStarted = -1;
+                    for (int i = 0; i < p.Length; i++) {
+                        if (p[i] == '%') {
+                            if (EnvVarStarted != -1) {
+                                decodedpath += Environment.GetEnvironmentVariable(p.Substring(EnvVarStarted, i - EnvVarStarted).Replace("%", ""));
+                                Console.WriteLine("FOUND ENV VARIABLE: " + p.Substring(EnvVarStarted, i - EnvVarStarted).Replace("%", ""));
+                                EnvVarStarted = -1;
+                            }
+                            else EnvVarStarted = i;
+                        } else if (EnvVarStarted == -1) decodedpath += p[i];
+                    }
+                    p = decodedpath;
+
+                    Console.WriteLine("DECODED PATH: " + decodedpath);
+
                     if (Directory.Exists(p)) {
                         List<string> vs = new List<string>(Directory.GetDirectories(p));
                         foreach (string f in Directory.GetFiles(p))
@@ -170,7 +190,7 @@ namespace Alan {
                             r += $"{{\"name\":\"{fn}\",\"directory\":\"{Directory.Exists(f)}\"}},";
                         }
                         if (r.EndsWith(",")) r = r.Substring(0, r.Length - 1);
-                        r += "]}";
+                        r += $"],\"decodedpath\":\"{decodedpath.Replace("\\", "/")}\"}}";
                         s.Send(r);
                     }
                     break;
@@ -276,6 +296,11 @@ namespace Alan {
                 case "pc.screenshare.stop":
                     ScreenShare.s.Remove(s);
                     break;
+                case "pc.screenshare.properties":
+                    ScreenShare.STREAM_FRAMES = json.c["frames"].ToInt();
+                    ScreenShare.STREAM_SIZE[0] = json.c["w"].ToInt();
+                    ScreenShare.STREAM_SIZE[1] = json.c["h"].ToInt();
+                    break;
                 case "pc.torrent.games.find":
                     string Games = TorrentFinder.FindGamesJson((string)json.c["query"].v);
                     s.Send($"{{\"action\":\"pc.torrent.games.find\",\"caller\":\"{json.c["caller"].v}\",\"list\":\"{Games}\"}}");
@@ -286,15 +311,13 @@ namespace Alan {
                 case "open.link":
 
                     break;
-
-
                 case "watch.play":
                     int season = 0, episode = 0;
                     if (json.c["type"].ToString() == "serie") {
                         season = (int)json.c["season"].v;
                         episode = (int)json.c["episode"].v;
                     }
-                    Watch.Play(json.c["imdbid"].ToString(), json.c["type"].ToString(), season, episode);
+                    //Watch.Play(json.c["imdbid"].ToString(), json.c["type"].ToString(), season, episode);
                     break;
                 case "watch.resume":
                     break;

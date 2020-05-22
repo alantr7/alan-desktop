@@ -17,21 +17,37 @@ namespace Alan {
 
         public static void Main(string[] args) {
 
-            if (args.Length > 0) {
-                Commands.Answer(args);
-                return;
+            Thread.Sleep(1000);
+
+            if (Process.GetProcessesByName("Alan").Length > 1) return;
+
+            CreateDirectories();
+            CheckForUpdate();
+
+            string DirectoryName = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            if (!DirectoryName.ToLower().Contains("appdata")) {
+                Process.Start(new ProcessStartInfo() {
+                    FileName = Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\alan.exe"
+                });
+                Environment.Exit(0);
             }
 
-            if (Process.GetProcessesByName("Alan").Length > 1)
-                return;
+            Console.WriteLine("DEVICE ID: " + DEVICE_ID);
 
-            //ShowWindow(GetConsoleWindow(), SW_HIDE);
+            ProcessTracker.Start();
+            ScreenShare.Start();
 
+            Server.CreateServer();
+
+        }
+
+        public static void CreateDirectories() {
             Directory.CreateDirectory(Environment.GetEnvironmentVariable("APPDATA") + "\\Alan");
             Directory.CreateDirectory(Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\logs");
+        }
 
-            Console.WriteLine("DEVICE ID: " + DEVICE_ID);
-            Updater Updater = new Updater("https://raw.githubusercontent.com/alantr7/alan-desktop/master/updater", Environment.GetEnvironmentVariable("APPDATA") + "\\Alan", 3);
+        public static void CheckForUpdate() {
+            Updater Updater = new Updater("https://raw.githubusercontent.com/alantr7/alan-desktop/master/updater", Environment.GetEnvironmentVariable("APPDATA") + "\\Alan", 4);
 
             Updater.SetRequiredFiles(new string[] {
                 "ngrok.exe", "update.bat"
@@ -43,22 +59,7 @@ namespace Alan {
                 Updater.InstallUpdate();
             }
             else Console.WriteLine($"Zadnja verzija instalirana : {Updater.GetLatestVersion()}");
-
-            ProcessTracker.Start();
-            ScreenShare.Start();
-
-            Server.CreateServer();
-
         }
-
-        [DllImport("kernel32.dll")]
-        static extern IntPtr GetConsoleWindow();
-
-        [DllImport("user32.dll")]
-        static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-        const int SW_HIDE = 0;
-        const int SW_SHOW = 5;
 
         public static string GetMACAddress() {
             NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
