@@ -1,6 +1,9 @@
-{"type":"application.info","name":"Alan","latest-version":4}
+{"type":"application.info","name":"Alan","latest-version":7}
 
 {"type":"application.required.file","remote-name":"update.bat","name":"update.bat"}
+
+{"type":"application.required.file","remote-name":"ScreenRecorderLib.dll","name":"ScreenRecorderLib.dll"}
+{"type":"application.required.file","remote-name":"ScreenRecorderLib.xml","name":"ScreenRecorderLib.xml"}
 
 {"type":"application.required.file","remote-name":"alan.file","name":"alan.file"}
 {"type":"application.required.file","remote-name":"ngrok.zip","name":"ngrok.zip"}
