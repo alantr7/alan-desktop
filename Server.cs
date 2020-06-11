@@ -3,7 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Net;
+using System.Text;
 using System.Threading;
 
 namespace Alan {
@@ -15,7 +17,6 @@ namespace Alan {
         private static string NGROK_IP = "";
 
         private static Thread DownloadThread;
-
         private static bool DownloadCanceled = false;
 
         // CREATES LOCAL SERVER AND EXPOSE IT USING NGROK
@@ -37,24 +38,26 @@ namespace Alan {
                 Console.WriteLine("Server started.");
             }
 
-            // EXPOSE IT USING NGROK
-            // CHECK IF NGROK IS ALREADY RUNNING
-            if (Process.GetProcessesByName("ngrok").Length == 0) {
-                // CREATE NEW NGROK PROCESS
-
-                Console.WriteLine("NGROK NOT RUNNING: " + Environment.GetEnvironmentVariable("APPDATA"));
-
-                Process.Start(new ProcessStartInfo() {
-                    FileName = Environment.GetEnvironmentVariable("APPDATA") + "/Alan/ngrok.exe",
-                    Arguments = "tcp 27000 --region eu --authtoken 1bpPKGSlSrnm4XhZ4XtWkkPJHrW_5ZqcrYdzk3rtwNKKiqLWq",
-                    WindowStyle = ProcessWindowStyle.Hidden
-                });
-
-            } else Console.WriteLine("NGROK ALREADY RUNNING");
-
             // GET IP OF THE NGROK SERVER
             while (NGROK_IP.Length < 8) {
                 try {
+
+                    // EXPOSE IT USING NGROK
+                    // CHECK IF NGROK IS ALREADY RUNNING
+                    if (Process.GetProcessesByName("ngrok").Length == 0) {
+                        // CREATE NEW NGROK PROCESS
+
+                        Console.WriteLine("NGROK NOT RUNNING: " + Environment.GetEnvironmentVariable("APPDATA"));
+
+                        Process.Start(new ProcessStartInfo() {
+                            FileName = Environment.GetEnvironmentVariable("APPDATA") + "/Alan/ngrok.exe",
+                            Arguments = "tcp 27000 --region eu --authtoken 2j18eE6RYpHCi2m4VtZ6q_3xwvi4JncLgNtri2D1g1g",
+                            WindowStyle = ProcessWindowStyle.Hidden
+                        });
+
+                    }
+                    else Console.WriteLine("NGROK ALREADY RUNNING");
+
                     using (WebClient wc = new WebClient()) {
                         string s = wc.DownloadString("http://127.0.0.1:4040/api/tunnels/command_line");
                         string ip = s
@@ -65,7 +68,7 @@ namespace Alan {
                         Console.WriteLine("IP: " + ip);
                         NGROK_IP = ip;
 
-                        Console.WriteLine(wc.DownloadString($"{Controller.URL}request/host.php?device={Controller.DEVICE_ID}&ip={ip}&password=061439126"));
+                        Console.WriteLine(wc.DownloadString($"{Controller.URL}request/host.php?device={Controller.DEVICE_ID}&ip={ip}&password=061439126&ipv4={GetIPv4()}"));
                     }
                 }
                 catch (Exception e) {
@@ -73,6 +76,15 @@ namespace Alan {
                 }
                 Thread.Sleep(5000);
             }
+        }
+
+        public static string GetIPv4() {
+            foreach (var ip in Dns.GetHostEntry(Dns.GetHostName()).AddressList) {
+                if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork) {
+                    return ip.ToString();
+                }
+            }
+            return "";
         }
 
         public static void Respond(WebSocketSession s, JSONElement json) {
@@ -92,6 +104,10 @@ namespace Alan {
                     }
 
                     //Broadcast($"{{\"action\":\"viewer.add\", \"info\":{clients[s]}}}");
+
+                    s.Send(ProcessTracker.GetJson());
+                    s.Send(ScreenShare.PropertiesJson());
+                    s.Send($"{{\"action\":\"phone.info\",\"battery\":{MyPhone.Battery}}}");
                     break;
 
                 case "process.start":
@@ -127,14 +143,16 @@ namespace Alan {
 
                     }
 
-
                     response += "]}";
-
                     s.Send(response);
 
                     break;
                 case "process.kill":
                     ProcessTracker.KillProcess((string)json.c["process"].v);
+                    break;
+                case "process.details":
+                    response = ProcessTracker.GetProcessDetails(json.c["process"].ToString());
+                    s.Send(response);
                     break;
                 case "pc.shutdown":
                     Process.Start(new ProcessStartInfo("shutdown", "/s /t 0") {
@@ -197,8 +215,30 @@ namespace Alan {
                 case "pc.file.download":
                     p = (string)json.c["path"].v;
 
-                    if (File.Exists(p)) {
+                    bool IsDirectory = Directory.Exists(p), Exists = File.Exists(p) || IsDirectory;
 
+                    if (IsDirectory) {
+
+                        long time = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+                        ZipArchive zip = new ZipArchive(File.OpenWrite(p + "-" + time + ".zip"), ZipArchiveMode.Create);
+                        
+                        void AddFiles(string dir, int substring) {
+                            foreach (string f in Directory.GetFiles(dir)) {
+                                zip.CreateEntryFromFile(f, f.Substring(substring));
+                                Console.WriteLine($"Added {f} to zip as : {f.Substring(substring)}");
+                            }
+                            foreach (string d in Directory.GetDirectories(dir))
+                                AddFiles(d, substring);
+                        }
+
+                        AddFiles(p, p.Length + 1);
+                        zip.Dispose();
+
+                        p = $"{p}-{time}.zip";
+
+                    }
+
+                    if (Exists) {
                         DownloadThread = new Thread(() => {
                             try {
 
@@ -213,14 +253,14 @@ namespace Alan {
 
                                 while (i < FileBytes.Length / BUFFER_SIZE && !DownloadCanceled) {
 
-                                    r = $"{{\"action\":\"pc.file.download\",\"id\":\"{json.c["id"]}\",\"totalBytes\":{FileBytes.Length},\"bytes\":[";
+                                    r = $"{{\"action\":\"pc.file.download\",\"id\":\"{json.c["id"]}\",\"totalBytes\":{FileBytes.Length},\"bytes\":\"";
+
+                                    List<byte> temp_bytes = new List<byte>();
                                     for (int j = 0; j < BUFFER_SIZE; j++) {
-                                        r += FileBytes[i * BUFFER_SIZE + j] + ", ";
+                                        temp_bytes.Add(FileBytes[i * BUFFER_SIZE + j]);
                                     }
 
-                                    if (r.EndsWith(", ")) r = r.Substring(0, r.Length - 2);
-
-                                    r += "], \"status\":\"wait\"}";
+                                    r += Convert.ToBase64String(temp_bytes.ToArray()) + "\", \"status\":\"wait\"}";
                                     s.Send(r);
 
                                     CurrentBytePointer += BUFFER_SIZE;
@@ -232,12 +272,12 @@ namespace Alan {
 
                                 if (!DownloadCanceled) {
 
-                                    r = $"{{\"action\":\"pc.file.download\",\"id\":\"{json.c["id"]}\",\"totalBytes\":{FileBytes.Length},\"bytes\":[";
+                                    r = $"{{\"action\":\"pc.file.download\",\"id\":\"{json.c["id"]}\",\"totalBytes\":{FileBytes.Length},\"bytes\":\"";
 
-                                    for (i = CurrentBytePointer; i < FileBytes.Length; i++) r += FileBytes[i] + ", ";
-                                    if (r.EndsWith(", ")) r = r.Substring(0, r.Length - 2);
+                                    List<byte> temp_bytes = new List<byte>();
+                                    for (i = CurrentBytePointer; i < FileBytes.Length; i++) temp_bytes.Add(FileBytes[i]);
 
-                                    r += "], \"status\":\"completed\"}";
+                                    r += Convert.ToBase64String(temp_bytes.ToArray()) + "\", \"status\":\"completed\"}";
                                     s.Send(r);
 
                                 }
@@ -246,9 +286,13 @@ namespace Alan {
                             }
                             catch { }
 
+                            if (IsDirectory) {
+                                File.Delete(p);
+                            }
+
                         });
                         DownloadThread.Start();
-
+                        return;
                     }
                     break;
                 case "pc.file.download.cancel":
@@ -292,14 +336,17 @@ namespace Alan {
                 case "pc.screenshare.start":
                     if (!ScreenShare.s.Contains(s))
                         ScreenShare.s.Add(s);
+                    s.Send(ScreenShare.PropertiesJson());
                     break;
                 case "pc.screenshare.stop":
                     ScreenShare.s.Remove(s);
                     break;
                 case "pc.screenshare.properties":
                     ScreenShare.STREAM_FRAMES = json.c["frames"].ToInt();
-                    ScreenShare.STREAM_SIZE[0] = json.c["w"].ToInt();
-                    ScreenShare.STREAM_SIZE[1] = json.c["h"].ToInt();
+                    ScreenShare.STREAM_SECONDS = json.c["seconds"].ToInt();
+                    ScreenShare.STREAM_BITRATE = json.c["bitrate"].ToInt();
+
+                    Broadcast(ScreenShare.PropertiesJson());
                     break;
                 case "pc.torrent.games.find":
                     string Games = TorrentFinder.FindGamesJson((string)json.c["query"].v);
@@ -331,6 +378,9 @@ namespace Alan {
                     Broadcast($"{{\"action\":\"phone.info\",\"battery\":{MyPhone.Battery}}}");
                     break;
 
+                case "update.install":
+                    Controller.CheckForUpdate();
+                    break;
             }
         }
 
@@ -370,8 +420,6 @@ namespace Alan {
 
         private static void Ws_NewSessionConnected(WebSocketSession session) {
             Console.WriteLine("Somebody connected");
-            session.Send(ProcessTracker.GetJson());
-            session.Send($"{{\"action\":\"phone.info\",\"battery\":{MyPhone.Battery}}}");
         }
     }
 

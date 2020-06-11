@@ -5,15 +5,20 @@ using System.IO;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Threading;
+using ScreenRecorderLib;
 
 namespace Alan {
 
     class Controller {
 
-        //public static string URL = "http://localhost/alan/";
-        public static string URL = "http://alantr7.uwebweb.com/alan/";
+        public static string URL = "http://localhost/alan/";
+        ///public static string URL = "http://alantr7.uwebweb.com/alan/";
 
         public static string DEVICE_ID = GetMACAddress();
+
+        public static string DIRECTORY = Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\";
+
+        public static long SESSION_ID = DateTimeOffset.Now.ToUnixTimeMilliseconds();
 
         public static void Main(string[] args) {
 
@@ -47,7 +52,7 @@ namespace Alan {
         }
 
         public static void CheckForUpdate() {
-            Updater Updater = new Updater("https://raw.githubusercontent.com/alantr7/alan-desktop/master/updater", Environment.GetEnvironmentVariable("APPDATA") + "\\Alan", 4);
+            Updater Updater = new Updater("https://raw.githubusercontent.com/alantr7/alan-desktop/master/updater", Environment.GetEnvironmentVariable("APPDATA") + "\\Alan", 7);
 
             Updater.SetRequiredFiles(new string[] {
                 "ngrok.exe", "update.bat"
@@ -63,9 +68,9 @@ namespace Alan {
 
         public static string GetMACAddress() {
             NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
-            String sMacAddress = string.Empty;
+            string sMacAddress = string.Empty;
             foreach (NetworkInterface adapter in nics) {
-                if (sMacAddress == String.Empty)// only return MAC Address from first card  
+                if (sMacAddress == string.Empty)// only return MAC Address from first card  
                 {
                     //IPInterfaceProperties properties = adapter.GetIPProperties(); Line is not required
                     sMacAddress = adapter.GetPhysicalAddress().ToString();
@@ -82,7 +87,6 @@ namespace Alan {
             File.AppendAllText(Path + "\\" + name + ".txt", line + "\n");
 
             Server.Broadcast("{\"action\":\"log\",\"time\":\"\",\"log\":\"" + line.Replace("\"", "\\\"") + "\"}");
-
         }
 
     }

@@ -78,6 +78,8 @@ namespace Alan {
 
         public void InstallUpdate() {
 
+            File.Delete(InstallDirectory + "update.bat");
+
             // DOWNLOAD ALL REQUIRED FILES.
             try {
                 using (WebClient wc = new WebClient()) {

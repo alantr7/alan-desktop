@@ -15,109 +15,110 @@ namespace Alan {
 
             Dictionary<int, JSONElement> Open = new Dictionary<int, JSONElement>();
 
-            a: for (int i = 0; i < json.Length; i++) {
-                if ((json[i] == '"' && i - 1 < 0) || (json[i] == '"' && i - 1 >= 0 && json[i - 1] != '\\')) {
-                    Quoted = !Quoted;
-                    continue;
-                }
+            try {
+                a: for (int i = 0; i < json.Length; i++) {
+                    if ((json[i] == '"' && i - 1 < 0) || (json[i] == '"' && i - 1 >= 0 && json[i - 1] != '\\')) {
+                        Quoted = !Quoted;
+                        continue;
+                    }
 
-                if (json[i] == '[' && !Quoted) {
-                    SquareBrackets = true;
-                    continue;
-                }
-                if (json[i] == ']' && !Quoted) {
-                    SquareBrackets = false;
-                    continue;
-                }
+                    if (json[i] == '[' && !Quoted) {
+                        SquareBrackets = true;
+                        continue;
+                    }
+                    if (json[i] == ']' && !Quoted) {
+                        SquareBrackets = false;
+                        continue;
+                    }
 
-                if (json[i] == '{' && !Quoted) {
+                    if (json[i] == '{' && !Quoted) {
 
-                    int OpenCount = 0;
-                    int FoundCount = 0;
+                        int OpenCount = 0;
+                        int FoundCount = 0;
 
-                    bool Quoted2 = false;
+                        bool Quoted2 = false;
 
-                    for (int j = i; j < json.Length; j++) {
+                        for (int j = i; j < json.Length; j++) {
 
-                        if (json[j] == '"' && json[j - 1] != '\\') {
-                            Quoted2 = !Quoted2;
-                            continue;
-                        }
-                        
-                        if (json[j] == '{' && !Quoted2) {
-                            OpenCount++;
-                            continue;
-                        }
-                        if (json[j] == '}' && !Quoted2) {
-                            FoundCount++;
-                            if (OpenCount == FoundCount) {
+                            if (json[j] == '"' && json[j - 1] != '\\') {
+                                Quoted2 = !Quoted2;
+                                continue;
+                            }
 
-                                bool Quoted3 = false;
-                                int Brackets = 0;
-                                for (int k = j; k >= 0; k--) {
-                                    if (json[k] == '"' && (k == 0 || (k - 1 >= 0 && json[k - 1] != '\\'))) {
-                                        Quoted3 = !Quoted3;
-                                        continue;
-                                    }
-                                    if (json[k] == '{' && !Quoted3) {
-                                        Brackets++;
-                                        continue;
-                                    }
-                                    if (json[k] == '}' && !Quoted3) {
-                                        Brackets--;
-                                        continue;
-                                    }
-                                }
+                            if (json[j] == '{' && !Quoted2) {
+                                OpenCount++;
+                                continue;
+                            }
+                            if (json[j] == '}' && !Quoted2) {
+                                FoundCount++;
+                                if (OpenCount == FoundCount) {
 
-                                string Name = "";
-                                if (json[i - 1] == ':') {
-                                    bool IsOpen = false;
-                                    for (int k = i - 2; k >= 0; k--) {
+                                    bool Quoted3 = false;
+                                    int Brackets = 0;
+                                    for (int k = j; k >= 0; k--) {
                                         if (json[k] == '"' && (k == 0 || (k - 1 >= 0 && json[k - 1] != '\\'))) {
-                                            IsOpen = !IsOpen;
-                                            if (IsOpen == false) {
-                                                Name = json.Substring(k + 1, i - 3 - k);
-                                                break;
+                                            Quoted3 = !Quoted3;
+                                            continue;
+                                        }
+                                        if (json[k] == '{' && !Quoted3) {
+                                            Brackets++;
+                                            continue;
+                                        }
+                                        if (json[k] == '}' && !Quoted3) {
+                                            Brackets--;
+                                            continue;
+                                        }
+                                    }
+
+                                    string Name = "";
+                                    if (json[i - 1] == ':') {
+                                        bool IsOpen = false;
+                                        for (int k = i - 2; k >= 0; k--) {
+                                            if (json[k] == '"' && (k == 0 || (k - 1 >= 0 && json[k - 1] != '\\'))) {
+                                                IsOpen = !IsOpen;
+                                                if (IsOpen == false) {
+                                                    Name = json.Substring(k + 1, i - 3 - k);
+                                                    break;
+                                                }
                                             }
                                         }
                                     }
-                                }
 
-                                string JsonObject = json.Substring(i, j - i + 1);
-                                JSONElement JsonElement = new JSONElement();
-                                JsonElement.v = JsonObject;
+                                    string JsonObject = json.Substring(i, j - i + 1);
+                                    JSONElement JsonElement = new JSONElement();
+                                    JsonElement.v = JsonObject;
 
-                                int BracketsCount = 0;
-                                bool Quoted4 = false;
-                                for (int k = 0; k < JsonObject.Length; k++) {
-                                    
-                                    if (json[k] == '"' && (k == 0 || (k - 1 >= 0 && json[k - 1] != '\\'))) {
-                                        Quoted4 = !Quoted4;
-                                        continue;
+                                    int BracketsCount = 0;
+                                    bool Quoted4 = false;
+                                    for (int k = 0; k < JsonObject.Length; k++) {
+
+                                        if (json[k] == '"' && (k == 0 || (k - 1 >= 0 && json[k - 1] != '\\'))) {
+                                            Quoted4 = !Quoted4;
+                                            continue;
+                                        }
+
+                                        if ((JsonObject[k] == '{' || JsonObject[k] == '}') && !Quoted4) BracketsCount++;
                                     }
 
-                                    if ((JsonObject[k] == '{' || JsonObject[k] == '}') && !Quoted4) BracketsCount++;
+                                    if (BracketsCount <= 2) {
+                                        JsonElement.CreateValues(JsonObject);
+                                    }
+
+                                    Open[Brackets] = JsonElement;
+                                    if (Brackets > 0) {
+                                        Open[Brackets - 1].c.Add(Name, JsonElement);
+                                    }
+                                    break;
                                 }
 
-                                if (BracketsCount <= 2) {
-                                    JsonElement.CreateValues(JsonObject);
-                                }
-                                else Console.WriteLine("Found " + BracketsCount + " brackets");
-
-                                Open[Brackets] = JsonElement;
-                                if (Brackets > 0) {
-                                    Open[Brackets - 1].c.Add(Name, JsonElement);
-                                }
-                                break;
+                                continue;
                             }
 
-                            continue;
                         }
-
+                        continue;
                     }
-                    continue;
                 }
-            }
+            } catch { }
 
             return Open.Count > 0 ? Open[0] : new JSONElement();
         }
@@ -133,7 +134,11 @@ namespace Alan {
                 s = s.Substring(0, s.Length - 2);
                 s += "}";
             }
-            else s += root.v;
+            else {
+                if (root.v is int || root.v is bool)
+                    s += root.v;
+                else s += "\"" + root.v + "\"";
+            }
 
             return s;
         }
@@ -143,6 +148,12 @@ namespace Alan {
     class JSONElement {
         public Dictionary<string, JSONElement> c = new Dictionary<string, JSONElement>();
         public object v;
+
+        public JSONElement() { }
+        public JSONElement(object value) {
+            this.v = value;
+        }
+
         public void CreateValues(string s) {
 
             //Console.WriteLine("Creating values: " + s);
@@ -168,7 +179,6 @@ namespace Alan {
                                             Quoted2 = !Quoted2;
                                             if (!Quoted2) {
                                                 value = s.Substring(QuoteStart2 + 1, j - QuoteStart2 - 1);
-                                                Console.WriteLine("VALUE FOUND: " + key + " : " + value);
                                                 i = j;
                                                 break;
                                             }
@@ -202,6 +212,9 @@ namespace Alan {
         }
         public int ToInt() {
             return Int32.Parse("" + v);
+        }
+        public long ToLong() {
+            return long.Parse("" + v);
         }
         public bool ToBool() {
             return Boolean.Parse("" + v);

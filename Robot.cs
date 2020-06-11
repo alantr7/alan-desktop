@@ -129,7 +129,7 @@ namespace Alan {
             await Task.Delay(1000);
             KeyUp(b);
         }
-
+        
         public static string ScreenshotJson() {
 
             string data = "";
@@ -151,6 +151,10 @@ namespace Alan {
 
                 data = Convert.ToBase64String(imageBytes);
 
+                Console.WriteLine("Bytes - Base64: " + data.Length);
+                Console.WriteLine("Bytes: " + imageBytes.Length);
+                data = UTF8Encoding.UTF8.GetString(imageBytes);
+
                 bmp.Dispose();
                 g2.Dispose();
                 bmp2.Dispose();
@@ -159,6 +163,25 @@ namespace Alan {
 
             return $"{{\"action\":\"pc.screenshare.data\", \"screen\":{{\"w\":{ScreenShare.STREAM_SIZE[0]},\"h\":{ScreenShare.STREAM_SIZE[1]},\"fps\":{ScreenShare.STREAM_FRAMES}}}, \"data\":\"{data}\"}}";
 
+        }
+
+        public static Bitmap Screenshot() {
+            int SW = Screen.PrimaryScreen.Bounds.Width, SH = Screen.PrimaryScreen.Bounds.Height;
+
+            Bitmap bmp = new Bitmap(SW, SH);
+
+            using (Graphics g = Graphics.FromImage(bmp)) {
+                g.CopyFromScreen(0, 0, 0, 0, new Size(SW, SH));
+
+                Bitmap bmp2 = new Bitmap(ScreenShare.STREAM_SIZE[0], ScreenShare.STREAM_SIZE[1]);
+                Graphics g2 = Graphics.FromImage(bmp2);
+                g2.DrawImage(bmp, 0, 0, ScreenShare.STREAM_SIZE[0], ScreenShare.STREAM_SIZE[1]);
+
+                bmp.Dispose();
+                g2.Dispose();
+
+                return bmp2;
+            }
         }
 
     }
