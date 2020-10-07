@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Alan.program;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -10,338 +11,208 @@ using System.Threading.Tasks;
 namespace Alan {
     class ProcessTracker {
 
+        // Process tracker thread
         private static Thread t;
-        private static Dictionary<string, long> ProcessList = new Dictionary<string, long>();
 
+        // Number of times that process list has been updated (every 5 seconds)
         private static int Count = 0;
 
+        // Start process tracker thread
         public static void Start() {
-            t = new Thread(a2);
+            t = new Thread(Work);
             t.Start();
         }
 
-        private static void a() {
-
-            if (!File.Exists(Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\process-times.json"))
-                File.WriteAllText(Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\process-times.json", "{}");
-
-            string[] logdates = Directory.GetDirectories(Controller.DIRECTORY + "logs");
-            long[] lastmod = new long[] { 0, 0 };
-
-            for (int i = 1; i < logdates.Length; i++) {
-                long millis;
-                if ((millis = ((DateTimeOffset)new FileInfo(logdates[i]).LastWriteTime).ToUnixTimeMilliseconds()) > lastmod[1]) {
-                    lastmod[0] = i;
-                    lastmod[1] = millis;
-                }
-            }
-
-            if (logdates.Length > 0)
-                File.AppendAllText(logdates[lastmod[0]] + "\\processtracker.txt", $"{{\"action\":\"pc.shutdown\",\"time\":\"{PCLastShutdown()}\"}}\n");
-
-            while (true) {
-
-                Count++;
-
-                // GET LIST OF ACTIVE PROCESSES
-                Process[] plist = Process.GetProcesses();
-                
-                // CHECK IF PROCESS HAS ALREADY BEEN STARTED BEFORE. IF NOT
-                // THEN ADD IT TO LIST
-                foreach (Process p in plist) {
-                    string pname = p.ProcessName.ToLower();
-                    if (!ProcessList.ContainsKey(pname)) {
-
-                        // PROCESS HAS JUST STARTED
-                        Console.WriteLine($"{pname} has started.");
-                        ProcessList.Add(pname, DateTimeOffset.Now.ToUnixTimeMilliseconds());
-
-                        string Json = $"{{\"action\":\"process.start\", \"process\":\"{pname}\", \"appname\":\"{p.MainWindowTitle.Replace("\\", "\\\\")}\", \"time\":\"{DateTimeOffset.Now.ToUnixTimeMilliseconds()}\"}}";
-
-                        Server.Broadcast(Json);
-                        Controller.Log("processtracker", Json);
-                    }
-                }
-
-                if (Count % 2 == 0) {
-                    JSONElement Root = JSON.Parse(File.ReadAllText(Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\process-times.json").ToLower());
-                    foreach (string p in ProcessList.Keys) {
-                        if (Root.c.ContainsKey(p)) {
-                            Root.c[p].v = Int32.Parse(Root.c[p].ToString()) + 10;
-                        } else {
-                            JSONElement e = new JSONElement();
-                            e.v = 0;
-                            Root.c.Add(p, e);
-                        }
-                    }
-
-                    File.WriteAllText(Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\process-times.json", JSON.Stringify(Root));
-
-                }
-
-                // CHECK IF ANY OF PROCESSES HAS CLOSED
-                for (int i = ProcessList.Count - 1; i >= 0; i--) {
-                    string s = ProcessList.ElementAt(i).Key;
-                    bool f = false;
-                    foreach (Process p in plist) {
-                        if (p.ProcessName.ToLower().Equals(s)) {
-                            f = true;
-                            break;
-                        }
-                    }
-                    if (!f) {
-                        // PROCESS IS CLOSED
-                        Console.WriteLine($"{s} has closed.");
-                        ProcessList.Remove(s);
-
-                        string Json = $"{{\"action\":\"process.close\", \"process\":\"{s}\", \"time\":\"{DateTimeOffset.Now.ToUnixTimeMilliseconds()}\"}}";
-
-                        Server.Broadcast(Json);
-                        Controller.Log("processtracker", Json);
-                    }
-                }
-                Thread.Sleep(5000);
-            }
-        }
-
-        private static Dictionary<string, JSONElement> ProcessesJSON = new Dictionary<string, JSONElement>();
+        // List of all running processes
         private static List<string> Processes = new List<string>();
-        private static void a2() {
 
-            if (!File.Exists(Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\process-times.json"))
-                File.WriteAllText(Environment.GetEnvironmentVariable("APPDATA") + "\\Alan\\process-times.json", "{}");
+        // This will be running on process tracker thread
+        private static void Work() {
 
-            string[] logdates = Directory.GetDirectories(Controller.DIRECTORY + "logs");
-            long[] lastmod = new long[] { 0, 0 };
+            if (!File.Exists(ProgramData.Directory + "process-tracker\\total.json"))
+                File.WriteAllText(ProgramData.Directory + "process-tracker\\total.json", "{}");
 
-            for (int i = 1; i < logdates.Length; i++) {
-                long millis;
-                if ((millis = ((DateTimeOffset)new FileInfo(logdates[i]).LastWriteTime).ToUnixTimeMilliseconds()) > lastmod[1]) {
-                    lastmod[0] = i;
-                    lastmod[1] = millis;
-                }
-            }
+            // Update total times file and delete older sessions
+            UpdateTotalTimes();
+
+            // Create new directory for current session
+            Directory.CreateDirectory($"{ProgramData.Directory}\\process-tracker\\{ProgramData.SystemBoot}");
 
             while (true) {
-
-                Count++;
-                Process[] procs = Process.GetProcesses();
-
-                foreach (Process proc in procs) {
-                    if (!Processes.Contains(proc.ProcessName.ToLower())) {
-                        // PROCESS HAS JUST STARTED.
-                        Processes.Add(proc.ProcessName.ToLower());
-
-                        if (!ProcessesJSON.ContainsKey(proc.ProcessName.ToLower())) {
-                            JSONElement e = new JSONElement();
-                            e.c.Add("name", new JSONElement(proc.ProcessName.ToLower()));
-                            e.c.Add($"{DateTimeOffset.Now.ToUnixTimeMilliseconds()}", new JSONElement("start"));
-
-                            ProcessesJSON.Add(proc.ProcessName.ToLower(), e);
-
-                            continue;
-                        }
-
-                        ProcessesJSON[proc.ProcessName.ToLower()].c.Add($"{DateTimeOffset.Now.ToUnixTimeMilliseconds()}", new JSONElement("start"));
-
-                    }
-                }
-
-                // CHECK IF ANY PROCESS HAS CLOSED
-                List<string> procnames = procs.Select(p => p.ProcessName.ToLower()).ToList();
-                for (int i = Processes.Count - 1; i >= 0; i--) {
-                    string proc = Processes[i];
-                    if (!procnames.Contains(proc)) {
-                        // PROCESS HAS JUST CLOSED
-                        Processes.Remove(proc);
-
-                        ProcessesJSON[proc].c.Add($"{DateTimeOffset.Now.ToUnixTimeMilliseconds()}", new JSONElement("close"));
-                    }
-                }
-
-                if (Count % 2 == 0) {
-
-                    List<string> lines = new List<string>();
-
-                    // SAVE JSON TO FILE
-                    foreach (JSONElement e in ProcessesJSON.Values)
-                        lines.Add(JSON.Stringify(e));
-
-                    File.WriteAllLines(Controller.DIRECTORY + "process-tracker\\" + Controller.SESSION_ID + ".txt", lines);
-                }
-
-                Thread.Sleep(5000);
-            }
-        }
-        
-        public static string GetJson() {
-            string m = "{\"action\":\"process.list\", \"list\":[";
-
-            try {/*
-                for (int i = Processes.Count - 1; i >= 0; i--) {
-                    string p = Processes[i];
-                    try {
-                        m += $"{{\"name\":\"{p}\",\"appname\":\"{Process.GetProcessesByName(p)[0].MainWindowTitle.Replace("\\", "\\\\")}\",\"start\":{0}}}, ";
-                    }
-                    catch { }
-                }
-                */
-
-                for (int i = ProcessesJSON.Count - 1; i >= 0; i--) {
-                    JSONElement e = ProcessesJSON.ElementAt(i).Value;
-                    m += $"\"{e.c["name"].ToString()}\",";
-                }
-
-                if (m.EndsWith(",")) m = m.Substring(0, m.Length - 1);
-            } catch { }
-
-            m += "]}";
-            return m;
-        }
-
-        public static string GetProcessDetails(string name) {
-
-            string r = $"{{\"action\":\"process.details\",\"process\":\"{name}\",";
-
-            try {
-                long total = 0;
-
-                DateTime dt = DateTime.Today;
-                List<long> times = GetAppsUptime(new int[] {
-                dt.Day,
-                dt.Month,
-                dt.Year
-            }, new int[] {
-                dt.Day,
-                dt.Month,
-                dt.Year
-            }, name).Values.ToList();
-                if (times.Count > 0) {
-                    total += times[0];
-                    r += $"\"today\":{times[0]},";
-                }
-                else r += $"\"today\":0,";
 
                 try {
-                    r += $"\"appname\":\"{Process.GetProcessesByName(name)[0].MainWindowTitle.Replace("\\", "\\\\")}\",";
-                }
-                catch {
-                    r += "\"appname\":\"\",";
-                }
+                    Process[] procs = Process.GetProcesses();
 
-                if (ProcessesJSON.ContainsKey(name)) {
-                    JSONElement e = ProcessesJSON[name];
-                    long start = 0;
-                    for (int j = e.c.Count - 1; j >= 0; j--) {
-                        if (e.c.ElementAt(j).Value.ToString() == "start") {
-                            start = long.Parse(e.c.ElementAt(j).Key);
-                            break;
+                    foreach (Process proc in procs) {
+                        if (!Processes.Contains(proc.ProcessName)) {
+
+                            // New process has just started
+                            Processes.Add(proc.ProcessName);
+
+                            // Save process start time to file
+                            long StartTime = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+                            File.AppendAllText($"{ProgramData.Directory}process-tracker\\{ProgramData.SystemBoot}\\{proc.ProcessName}.txt", $"s{StartTime}\n");
+
                         }
                     }
-                    r += $"\"start\":{start},";
-                }
-                else r += $"\"start\":0,";
 
-                r += "\"chart\":[";
+                    // Check if any process has closed
+                    List<string> procnames = procs.Select(p => p.ProcessName).ToList();
+                    for (int i = Processes.Count - 1; i >= 0; i--) {
+                        string proc = Processes[i];
+                        if (!procnames.Contains(proc)) {
 
-                for (int i = 0; i < 7; i++) {
-                    dt = dt.AddDays(-1);
+                            // Process has just closed
+                            Processes.Remove(proc);
 
-                    int[] date = new int[] { dt.Day, dt.Month, dt.Year };
-                    long[] arr = GetAppsUptime(date, date, name).Values.ToArray();
+                            // Save process exit time to file
+                            File.AppendAllText($"{ProgramData.Directory}process-tracker\\{ProgramData.SystemBoot}\\{proc}.txt", $"e{DateTimeOffset.Now.ToUnixTimeMilliseconds()}\n");
 
-                    if (arr.Length > 0) {
-                        total += arr[0];
+                        }
+                    }
 
-                        r += $"{{\"index\":{i},\"val\":{arr[0]}}},";
-                        Console.WriteLine($"{arr[0]} on {date[0]}, {date[1]}, {date[2]}");
+                    // Run every 10 seconds
+                    if (Count++ % 2 == 0) {
+
+                        // Save latest update to file
+                        File.WriteAllText($"{ProgramData.Directory}\\process-tracker\\{ProgramData.SystemBoot}\\last-update.txt", "");
+
                     }
                 }
+                catch { }
 
-                if (r.EndsWith(",")) r = r.Substring(0, r.Length - 1);
-                r += $"],\"total\":{total}}}";
-
-                Console.WriteLine(r);
+                Thread.Sleep(5000);
             }
-            catch {
-                return "";
+        }
+
+        private static void UpdateTotalTimes() {
+
+            JSONElement root = JSON.Parse(File.ReadAllText(ProgramData.Directory + "process-tracker\\total.json"));
+
+            string[] ss = Directory.GetDirectories(ProgramData.Directory + "process-tracker");
+            foreach (string s in ss) {
+
+                // Get session id from directory path
+                string session = s.Substring(s.LastIndexOf('\\') + 1, s.Length - s.LastIndexOf('\\') - 1);
+
+                long shutdown = DateTimeOffset.Now.ToUnixTimeMilliseconds(); // stores time when computer shut down, if it's still on, it will be current time
+                bool CurrentSession = session.Equals(ProgramData.SystemBoot + ""); // checks if checked session is equal to current one
+
+                if (!CurrentSession) {
+                    shutdown = (long)(new FileInfo(s + "\\last-update.txt").LastWriteTime - new DateTime(1970, 1, 1, 0, 0, 0)).TotalMilliseconds;
+                }
+
+                // Read all data
+                string[] fs = Directory.GetFiles(s);
+                foreach (string f in fs) {
+
+                    // Get process name from file path
+                    string process = f.Substring(f.LastIndexOf('\\') + 1, f.Length - f.LastIndexOf('\\') - 5);
+
+                    // Read process start and exit times, and calculate elapsed times
+                    string[] Lines = File.ReadAllLines(f);
+
+                    long startAt = 0; // stores last known start time for the process
+                    long total = 0; // stores total time that process has been up for that session
+
+                    // If 'total.json' file already contains time for this process, then it will be used as start value
+                    if (root.c.ContainsKey(process))
+                        total = root.c[process].ToLong();
+
+                    // This will be true if last line of the file starts with 'e'
+                    bool Ended = false;
+
+                    foreach (string l in Lines) {
+                        if (l.Length < 10) continue;
+                        try {
+                            long time = Int64.Parse(l.Substring(1));
+                            if (l.StartsWith("s")) {
+                                if (startAt != 0) total += time - startAt;
+                                startAt = time;
+                                Ended = false;
+                            }
+                            else {
+                                total += time - startAt;
+                                Ended = true;
+                            }
+                        }
+                        catch { }
+                    }
+
+                    // This will be 'false' if computer shut down or 'Alan' process was closed
+                    if (!Ended) {
+                        // If 'false' then app is closed because system turned off
+                        if (!CurrentSession) {
+                            total += shutdown - startAt;
+                        } else {
+                            if (Process.GetProcessesByName(process).Length > 0)
+                                total += DateTimeOffset.Now.ToUnixTimeMilliseconds() - startAt;
+                        }
+                    }
+
+                    root.c[process] = new JSONElement(total);
+                    Console.WriteLine($"New total for {process} : {total} for session {session}");
+                }
+
+                // Delete session directory since all values are already saved
+                foreach (string f in fs) {
+                    File.Delete(f);
+;               }
+                Directory.Delete(s);
+                Console.WriteLine($"Files and directory deleted @ {s}");
+
             }
 
-            return r;
+            File.WriteAllText(ProgramData.Directory + "process-tracker\\total.json", JSON.Stringify(root));
 
         }
 
-        public static void KillProcess(string n) {
-            Process[] ps = Process.GetProcessesByName(n);
-            if (ps.Length == 0) return;
+        // Get total times in milliseconds that process has been running
+        public static long GetProcessTotalUptime(string name) {
+            long uptime = 0;
 
-            Process p = ps[0];
-            p.Kill();
+            JSONElement root = JSON.Parse(File.ReadAllText(ProgramData.Directory + "process-tracker\\total.json"));
+            if (root.c.ContainsKey(name)) {
+                uptime = root.c[name].ToLong();
+            }
+
+            return uptime;
         }
 
-        public static long PCLastShutdown() {
+        public static string FormatProcessTime(long millis) {
+            int s = (int)(millis / 1000); // 3727114 / 1000 = 3727; 
+            int m = s / 60;
+            s -= m * 60;
 
-            long time = 0;
+            int h = m / 60;
+            m -= h * 60;
+
+            return $"{command.Command.FormatNumber(h, 2)}h {command.Command.FormatNumber(m, 2)}m {command.Command.FormatNumber(s, 2)}s";
+        }
+
+        // Get time that process has been running this session
+        public static long GetProcessUptime(string name) {
+            Process[] p = Process.GetProcessesByName(name);
+            if (p.Length == 0) return 0;
 
             try {
-                Microsoft.Win32.RegistryKey k = Microsoft.Win32.Registry.LocalMachine.OpenSubKey("System\\CurrentControlSet\\Control\\Windows");
-                time = ((DateTimeOffset)(DateTime.FromFileTime(BitConverter.ToInt64((byte[])k.GetValue("ShutdownTime"), 0)))).ToUnixTimeMilliseconds();
+                return (long)(p[0].StartTime - new DateTime(1970, 1, 1, 0, 0, 0)).TotalMilliseconds;
+            } catch {
+                return 0;
             }
-            catch { }
-
-            return time;
-
         }
 
-        public static Dictionary<string, long> GetAppsUptime(int[] start, int[] end, string process = null) {
+        // Get last time PC was shut down in milliseconds
+        public static long PCLastShutdown() {
+            try {
+                Microsoft.Win32.RegistryKey k = Microsoft.Win32.Registry.LocalMachine.OpenSubKey("System\\CurrentControlSet\\Control\\Windows");
+                return ((DateTimeOffset)(DateTime.FromFileTime(BitConverter.ToInt64((byte[])k.GetValue("ShutdownTime"), 0)))).ToUnixTimeMilliseconds();
+            } catch {}
+            return 0;
+        }
 
-            Dictionary<string, long> uptimes = new Dictionary<string, long>();
-
-            string[] fs = Directory.GetFiles(Controller.DIRECTORY + "process-tracker");
-            foreach (string f in fs) {
-                FileInfo fi = new FileInfo(f);
-                DateTime dt = fi.CreationTime;
-                DateTime dt2 = fi.LastWriteTime;
-
-                // SESSION IS IN RANGE [start - end]
-                if (dt.Day >= start[0] && dt.Day <= end[0] && dt.Month >= start[1] && dt.Month <= end[1] && dt.Year >= start[2] && dt.Year <= start[2]) {
-                    string[] Lines = File.ReadAllLines(f);
-                    foreach (string Line in Lines) {
-                        JSONElement json = JSON.Parse(Line);
-                        if (process != null && !json.c["name"].ToString().ToLower().Equals(process.ToLower())) continue;
-
-                        if (!uptimes.ContainsKey(json.c["name"].ToString().ToLower())) uptimes.Add(json.c["name"].ToString().ToLower(), 0);
-
-                        long startedAt = 0;
-                        bool closed = false;
-                        for (int i = 1; i < json.c.Keys.Count; i++) {
-                            if (json.c.Values.ElementAt(i).ToString() == "start") {
-                                startedAt = long.Parse(json.c.Keys.ElementAt(i));
-                                closed = false;
-                                continue;
-                            }
-
-                            long closedAt = long.Parse(json.c.Keys.ElementAt(i));
-                            long elapsed = closedAt - startedAt;
-
-                            uptimes[json.c["name"].ToString()] += elapsed;
-                            closed = true;
-
-                        }
-
-                        if (!closed) {
-                            // APP HAS STOPPED
-                            uptimes[json.c["name"].ToString()] += ((DateTimeOffset)dt2).ToUnixTimeMilliseconds() - startedAt;
-                        }
-
-                        if (process != null) break;
-
-                    }
-                }
-            }
-
-            return uptimes;
-
+        public static List<string> GetProcesses() {
+            return Processes;
         }
 
     }
